@@ -1,97 +1,125 @@
-# Custom Thread Pool Implementation
+# Реализация пользовательского пула потоков
 
-## Overview
+## Обзор
 
-This project implements a customizable thread pool for high-load server applications, providing fine-grained control over thread management, task queuing, and execution policies. It's designed as an alternative to the standard `ThreadPoolExecutor` with additional features.
+Данный проект представляет собой настраиваемый пул потоков для высоконагруженных серверных приложений, обеспечивающий детальный контроль над управлением потоками, очередями задач и политиками выполнения. Он разработан как альтернатива стандартному `ThreadPoolExecutor` с дополнительными возможностями.
 
-## Key Features
+## Ключевые особенности
 
-- Configurable core and maximum pool sizes
-- Idle timeout for worker threads
-- Multiple task queues with round-robin distribution
-- Minimum spare threads policy
-- Detailed execution logging
-- Custom rejection policies
+- Настраиваемый базовый и максимальный размер пула
+- Таймаут для неактивных рабочих потоков
+- Множественные очереди задач с распределением по принципу Round Robin
+- Политика минимального количества запасных потоков
+- Детальное логирование выполнения
+- Настраиваемые политики отказа
 
-## Implementation Details
+## Особенности реализации
 
-### Thread Pool Architecture
+### Архитектура пула потоков
 
-The thread pool consists of the following key components:
+Пул потоков состоит из следующих ключевых компонентов:
 
-1. **Worker Threads**: Each worker is associated with a specific task queue and processes tasks from it.
-2. **Task Queues**: Multiple bounded queues distribute the load among workers.
-3. **Thread Factory**: Creates and names worker threads.
-4. **Rejection Handler**: Manages task rejection when the pool is overloaded.
+1. **Рабочие потоки (Worker Threads)**: Каждый рабочий поток связан с конкретной очередью задач и обрабатывает задачи из неё.
+2. **Очереди задач**: Множественные ограниченные очереди распределяют нагрузку между рабочими потоками.
+3. **Фабрика потоков**: Создаёт и именует рабочие потоки.
+4. **Обработчик отказов**: Управляет отклонением задач при перегрузке пула.
 
-### Task Distribution Mechanism
+### Механизм распределения задач
 
-Tasks are distributed using a **Round Robin** approach:
-- Each task is offered to queues in a circular order
-- This prevents any single queue from becoming a bottleneck
-- If all queues are full, the pool attempts to create a new worker (if below maxPoolSize)
-- If no capacity is available, the rejection policy is applied
+Задачи распределяются по принципу **Round Robin**:
+- Каждая задача предлагается очередям в круговом порядке
+- Это предотвращает превращение какой-либо очереди в узкое место
+- Если все очереди заполнены, пул пытается создать новый рабочий поток (если количество потоков ниже maxPoolSize)
+- Если нет доступных ресурсов, применяется политика отказа
 
-### Worker Lifecycle Management
+### Управление жизненным циклом рабочих потоков
 
-Workers follow these lifecycle rules:
-- Core threads remain alive indefinitely (unless shutdown is called)
-- Non-core threads terminate after being idle for the keepAliveTime
-- If the number of spare threads falls below minSpareThreads, new workers are created
-- Terminated workers are automatically replaced if the pool size falls below corePoolSize
+Рабочие потоки следуют следующим правилам:
+- Базовые потоки остаются активными неопределённое время (если не вызван метод shutdown)
+- Не-базовые потоки завершаются после простоя в течение keepAliveTime
+- Если количество запасных потоков падает ниже minSpareThreads, создаются новые рабочие потоки
+- Завершенные рабочие потоки автоматически заменяются, если размер пула падает ниже corePoolSize
 
-### Rejection Handling
+### Обработка отказов
 
-The default rejection policy is AbortPolicy, which:
-- Logs the rejection with a warning
-- Throws a RejectedExecutionException
-- This was chosen as it provides immediate feedback and prevents silent failures
+Политика отказа по умолчанию — AbortPolicy:
+- Логирует отказ с предупреждением
+- Бросает исключение RejectedExecutionException
+- Данный подход был выбран, так как обеспечивает мгновенную обратную связь и предотвращает скрытые отказы
 
-Alternative policies could include:
-- CallerRuns: Execute the task in the caller's thread
-- Discard: Silently drop the task
-- DiscardOldest: Remove oldest task and try again
+Альтернативные политики могут включать:
+- CallerRuns: Выполнение задачи в потоке вызывающего
+- Discard: Молчаливое отбрасывание задачи
+- DiscardOldest: Удаление самой старой задачи и повторная попытка
 
-## Performance Analysis
+## Анализ производительности
 
-### Comparison with Standard ThreadPoolExecutor
+### Сравнение со стандартным ThreadPoolExecutor
 
-The custom pool offers several advantages:
-- **Multiple queues**: Reduces contention compared to a single shared queue
-- **Min spare threads**: More responsive under fluctuating loads
-- **Per-queue processing**: Better locality and cache efficiency
+Пользовательский пул предлагает несколько преимуществ:
+- **Множественные очереди**: Снижает конкуренцию по сравнению с единой общей очередью
+- **Минимум запасных потоков**: Более отзывчив при колеблющейся нагрузке
+- **Обработка по очередям**: Лучшая локальность и эффективность кэша
 
-Potential disadvantages:
-- Higher memory footprint due to multiple queue structures
-- More complex implementation with higher maintenance overhead
-- Thread creation/destruction overhead if parameters are not tuned correctly
+Потенциальные недостатки:
+- Более высокое потребление памяти из-за множественных структур очередей
+- Более сложная реализация с повышенными затратами на обслуживание
+- Накладные расходы на создание/уничтожение потоков, если параметры не оптимизированы
 
-### Optimal Configuration Parameters
+### Оптимальные параметры конфигурации
 
-Based on testing, these parameters work well for different scenarios:
+На основе тестирования, следующие параметры хорошо подходят для различных сценариев:
 
-**For IO-bound workloads:**
-- Higher core-to-max ratio (e.g., 8:16)
-- Larger queues (size 100+)
-- Longer keepAliveTime (30-60 seconds)
-- Low minSpareThreads (1-2)
+**Для IO-зависимых нагрузок:**
+- Более высокое соотношение базовых к максимальным потокам (например, 8:16)
+- Большие очереди (размер 100+)
+- Более длительное время keepAliveTime (30-60 секунд)
+- Низкое количество minSpareThreads (1-2)
 
-**For CPU-bound workloads:**
-- Lower core-to-max ratio (cores equal to CPU count)
-- Smaller queues (size 10-20)
-- Shorter keepAliveTime (5-10 seconds)
-- Higher minSpareThreads (cores/4)
+**Для CPU-зависимых нагрузок:**
+- Низкое соотношение базовых к максимальным потокам (базовые потоки равны количеству CPU)
+- Меньшие очереди (размер 10-20)
+- Короткое время keepAliveTime (5-10 секунд)
+- Высокое количество minSpareThreads (cores/4)
 
-**For mixed workloads:**
-- Medium core size (CPU count + 2)
-- Medium queue size (25-50)
-- Medium keepAliveTime (15-20 seconds)
-- Medium minSpareThreads (2-4)
+**Для смешанных нагрузок:**
+- Средний размер базовых потоков (количество CPU + 2)
+- Средний размер очереди (25-50)
+- Среднее время keepAliveTime (15-20 секунд)
+- Среднее количество minSpareThreads (2-4)
 
-## Usage Example
+## Сборка и запуск
+
+### Требования
+
+- Java 11 или выше
+- Maven 3.6 или выше
+
+### Сборка проекта
+
+```bash
+# Клонирование репозитория
+git clone https://github.com/your-username/custom-thread-pool.git
+cd custom-thread-pool
+
+# Сборка с Maven
+mvn clean package
+```
+
+### Запуск демонстрации
+
+```bash
+# Запуск с jar-файлом
+java -jar target/custom-thread-pool-1.0-SNAPSHOT.jar
+
+# Или запуск через classpath
+java -cp target/classes ru.threadpool.Main
+```
+
+## Пример использования
 
 ```java
-// Create a thread pool with specified parameters
+// Создание пула потоков с указанными параметрами
 CustomThreadPool pool = new CustomThreadPool(
     4,                     // corePoolSize
     8,                     // maxPoolSize
@@ -101,39 +129,26 @@ CustomThreadPool pool = new CustomThreadPool(
     2                      // minSpareThreads
 );
 
-// Submit tasks
+// Отправка задач
 pool.execute(() -> {
-    // Task implementation
+    // Реализация задачи
 });
 
-// Submit tasks with result
+// Отправка задач с результатом
 Future<String> result = pool.submit(() -> {
-    // Callable implementation
-    return "result";
+    // Реализация Callable
+    return "результат";
 });
 
-// Shutdown the pool
+// Завершение работы пула
 pool.shutdown();
 ```
 
-## Running the Demo
+## Будущие улучшения
 
-The project includes a demonstration application that showcases:
-1. Normal load handling
-2. Overload scenarios and rejection handling
-3. Proper shutdown procedures
-4. Interrupted tasks behavior
-
-To run the demo:
-```
-java -cp target/classes ru.threadpool.Main
-```
-
-## Future Improvements
-
-Potential enhancements for this implementation:
-- Task priority support
-- Least-loaded queue distribution algorithm
-- Worker thread affinity for better cache locality
-- More sophisticated monitoring capabilities
-- Adaptive sizing based on historical load patterns 
+Потенциальные улучшения для данной реализации:
+- Поддержка приоритетов задач
+- Алгоритм распределения по наименее загруженной очереди
+- Афинность рабочих потоков для лучшей локальности кэша
+- Более сложные возможности мониторинга
+- Адаптивное изменение размера на основе исторических данных о нагрузке 
